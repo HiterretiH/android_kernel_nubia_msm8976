@@ -2504,15 +2504,17 @@ static int mass_storage_function_init(struct android_usb_function *f,
 		return -ENOMEM;
 	}
 
-#ifdef CONFIG_ZTEMT_USB
-        /* ZTEMT: NO ums in new nubia storage solution */
-        config->fsg.nluns = 0;
-#else
-        config->fsg.nluns = 1;
-#endif
-
+	config->fsg.nluns = 1;
 	snprintf(name[0], MAX_LUN_NAME, "lun");
+#ifdef CONFIG_NUBIA_USB_CDROM
+	config->fsg.luns[0].cdrom = 1;
+	config->fsg.luns[0].ro = 1;
+	config->fsg.luns[0].removable = 0;
+	config->fsg.vendor_name = "nubia";
+	config->fsg.product_name = "Android";
+#else
 	config->fsg.luns[0].removable = 1;
+#endif
 
 	if (dev->pdata && dev->pdata->cdrom) {
 		config->fsg.luns[config->fsg.nluns].cdrom = 1;
@@ -2533,11 +2535,6 @@ static int mass_storage_function_init(struct android_usb_function *f,
 		config->fsg.luns[n].removable = 1;
 		config->fsg.nluns++;
 	}
-
-#ifdef CONFIG_ZTEMT_USB
-    config->fsg.vendor_name = "nubia";
-    config->fsg.product_name = "Android";
-#endif
 
 	common = fsg_common_init(NULL, cdev, &config->fsg);
 	if (IS_ERR(common)) {

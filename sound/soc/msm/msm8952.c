@@ -32,6 +32,11 @@
 #include "../codecs/msm8x16-wcd.h"
 #include "../codecs/wsa881x-analog.h"
 #include <linux/regulator/consumer.h>
+
+#ifdef CONFIG_SND_SOC_AW87319_GENERIC
+#include <../codecs/AW87319_Audio_M.h>
+#endif
+
 #define DRV_NAME "msm8952-asoc-wcd"
 
 #define BTSCO_RATE_8KHZ 8000
@@ -55,46 +60,6 @@ enum btsco_rates {
 };
 
 static bool ext_codec;
-#ifdef CONFIG_NUBIA_AUDIO_MULTIPLE_BOX
-static int box_info = 0;
-#endif
-//This macro CONFIG_NUBIA_AUDIO_EXTERNAL_PA_AW87xx is for external AW PA, Support AW8736/AW8738/AW87318
-//
-//If you have decided to use one of the three AW PA
-//just set the aw_pa_type and aw_pa_power_ctl, aw_test_mode, aw_default_mode derectly
-//
-//Or if the project is using multiple type of AW PA, open the MACRO CONFIG_NUBIA_AUDIO_MULTIPLE_AW_PA
-//aw_pa_type and aw_pa_power_ctl, aw_test_mode, aw_default_mode are set according to chip type
-#ifdef CONFIG_NUBIA_AUDIO_EXTERNAL_PA_AW87xx
-enum{
-        AW87xx_MODE_1 = 1,
-        AW87xx_MODE_2 = 3,
-        AW87xx_MODE_3 = 5,
-        AW87xx_MODE_4 = 7,
-        AW87xx_MODE_5 = 9,
-        AW87xx_MODE_6 = 11,
-        AW87xx_MODE_7 = 13,
-        AW87xx_MODE_8 = 15,
-	AW87xx_MODE_9 = 17,
-	AW87xx_MODE_10 = 19,
-};
-enum{
-        MAX_MODE_AW8736 = 4,
-	MAX_MODE_AW8738 = 7,
-	MAX_MODE_AW87318 = 10,
-};
-//default is AW8736, using mode3
-static char *aw_pa_type = "AW8738";
-static int aw_pa_power_ctl = AW87xx_MODE_5;//keep the current mode, equal aw_default_mode initially
-//aw_test_mode: keep the mode for factory test
-//aw_default_mode: keep the mode for default
-//The two variables is for MODE_TEST and MODE_DEFAULT. The two mode is different between AW87xx and xml can not recognise.
-//So, We cannot just define them by macro like AW87xx_MODE_1~AW87xx_MODE_10.
-static int aw_test_mode = AW87xx_MODE_1;
-static int aw_default_mode = AW87xx_MODE_5;
-static int aw_pa_type_gpio = -1;
-static int aw_pa_power_gpio = -1;
-#endif //CONFIG_NUBIA_AUDIO_EXTERNAL_PA_AW87xx
 
 static int msm8952_auxpcm_rate = 8000;
 static int msm_btsco_rate = BTSCO_RATE_8KHZ;
@@ -112,6 +77,9 @@ static atomic_t auxpcm_mi2s_clk_ref;
 static int msm8952_enable_dig_cdc_clk(struct snd_soc_codec *codec, int enable,
 					bool dapm);
 static bool msm8952_swap_gnd_mic(struct snd_soc_codec *codec);
+#ifdef CONFIG_NUBIA_AUDIO
+static bool msm_swap_set(struct snd_soc_codec *codec, int value1, int value2);
+#endif
 static int msm8952_mclk_event(struct snd_soc_dapm_widget *w,
 			      struct snd_kcontrol *kcontrol, int event);
 static int msm8952_wsa_switch_event(struct snd_soc_dapm_widget *w,
@@ -126,19 +94,19 @@ static int msm8952_ext_audio_switch_event(struct snd_soc_dapm_widget *w,
 static struct wcd_mbhc_config mbhc_cfg = {
 	.read_fw_bin = false,
 	.calibration = NULL,
-	.detect_extn_cable = false,
+	.detect_extn_cable = true,
 	.mono_stero_detection = false,
 	.swap_gnd_mic = NULL,
 	.hs_ext_micbias = false,
-#ifdef CONFIG_NUBIA_AUDIO_FEATURE
-       .key_code[0] = KEY_MEDIA,
-       .key_code[1] = KEY_VOLUMEUP,
-       .key_code[2] = KEY_VOLUMEDOWN,
-       .key_code[3] = KEY_VOICECOMMAND,
-       .key_code[4] = 0,
-       .key_code[5] = 0,
-       .key_code[6] = 0,
-       .key_code[7] = 0,
+#ifdef CONFIG_NUBIA_AUDIO
+	.key_code[0] = KEY_MEDIA,
+	.key_code[1] = KEY_VOLUMEUP,
+	.key_code[2] = KEY_VOLUMEDOWN,
+	.key_code[3] = KEY_VOICECOMMAND,
+	.key_code[4] = 0,
+	.key_code[5] = 0,
+	.key_code[6] = 0,
+	.key_code[7] = 0,
 #else
 	.key_code[0] = KEY_MEDIA,
 	.key_code[1] = KEY_VOICECOMMAND,
@@ -148,8 +116,8 @@ static struct wcd_mbhc_config mbhc_cfg = {
 	.key_code[5] = 0,
 	.key_code[6] = 0,
 	.key_code[7] = 0,
-	.linein_th = 5000,
 #endif
+	.linein_th = 5000,
 };
 
 static struct afe_clk_cfg mi2s_rx_clk_v1 = {
@@ -409,150 +377,16 @@ err:
 
 	return -EINVAL;
 }
-
-#ifdef CONFIG_NUBIA_AUDIO_EXTERNAL_PA_AW87xx
-bool aw87xx_power_on(int value)
-{
-        int curr = 0;
-        int count= 0;
-        int latch = 0;
-        pr_debug("%s value = %d, gpio = %d\n",__func__, value, aw_pa_power_gpio);
-        if (!gpio_is_valid(aw_pa_power_gpio)) {
-                pr_err("%s: Invalid gpio: %d\n", __func__, aw_pa_power_gpio);
-                return false;
-        }
-        curr = gpio_get_value_cansleep(aw_pa_power_gpio);
-        pr_debug("%s: aw_pa_power_gpio current value %d\n",__func__, curr);
-        if (curr != value){
-                latch = value;
-                if(value) {
-                        for(count=0;count < aw_pa_power_ctl; count++) {
-                                gpio_direction_output(aw_pa_power_gpio, latch);
-                                latch=!latch;
-                        }
-                }
-                else {
-                        gpio_direction_output(aw_pa_power_gpio, value);
-                }
-        }
-        curr = gpio_get_value_cansleep(aw_pa_power_gpio);
-        pr_debug("%s: aw_pa_power_gpio current finish value %d\n",__func__, curr);
-        return true;
-}
-
+#ifdef CONFIG_SND_SOC_AW87319_GENERIC
 static int enable_spk_ext_pa(struct snd_soc_codec *codec, int enable)
 {
-        if (enable)
-                aw87xx_power_on(1);
-        else
-                aw87xx_power_on(0);
-        return 0;
+  if (enable) {
+  	AW87319_Audio_Speaker();	 
+  	}else {
+  	AW87319_Audio_OFF();
+	}
+	return 0;
 }
-static int AW87xx_mode_put(struct snd_kcontrol *kcontrol,
-                                    struct snd_ctl_elem_value *ucontrol)
-{
-        if((!strcmp(aw_pa_type, "AW8736") && ucontrol->value.integer.value[0] > (MAX_MODE_AW8736-1))
-            || (!strcmp(aw_pa_type, "AW8738") && ucontrol->value.integer.value[0] > (MAX_MODE_AW8738-1))){
-                if(ucontrol->value.integer.value[0] != 10 && ucontrol->value.integer.value[0] != 11){
-		    pr_err("%s, The mode is not supported for %s", __func__, aw_pa_type);
-		    return 0;
-                }
-        }
-        switch (ucontrol->value.integer.value[0]) {
-        case 0:
-                aw_pa_power_ctl = AW87xx_MODE_1;
-                break;
-        case 1:
-                aw_pa_power_ctl = AW87xx_MODE_2;
-                break;
-        case 2:
-                aw_pa_power_ctl = AW87xx_MODE_3;
-                break;
-        case 3:
-                aw_pa_power_ctl = AW87xx_MODE_4;
-                break;
-	case 4:
-                aw_pa_power_ctl = AW87xx_MODE_5;
-                break;
-        case 5:
-                aw_pa_power_ctl = AW87xx_MODE_6;
-                break;
-        case 6:
-                aw_pa_power_ctl = AW87xx_MODE_7;
-                break;
-	case 7:
-                aw_pa_power_ctl = AW87xx_MODE_8;
-                break;
-	case 8:
-                aw_pa_power_ctl = AW87xx_MODE_9;
-                break;
-	case 9:
-                aw_pa_power_ctl = AW87xx_MODE_10;
-                break;
-        case 10:
-                aw_pa_power_ctl = aw_test_mode;
-                break;
-        case 11:
-        default:
-                aw_pa_power_ctl = aw_default_mode;
-                break;
-        }
-        pr_debug("%s: aw_pa_power_ctl = %d\n", __func__,
-                 aw_pa_power_ctl);
-        return 0;
-}
-static int AW87xx_mode_get(struct snd_kcontrol *kcontrol,
-        struct snd_ctl_elem_value *ucontrol)
-{
-        switch (aw_pa_power_ctl) {
-        case AW87xx_MODE_1:
-                ucontrol->value.integer.value[0] = 0;
-                break;
-        case AW87xx_MODE_2:
-                ucontrol->value.integer.value[0] = 1;
-                break;
-        case AW87xx_MODE_3:
-                ucontrol->value.integer.value[0] = 2;
-                break;
-        case AW87xx_MODE_4:
-                ucontrol->value.integer.value[0] = 3;
-                break;
-        case AW87xx_MODE_5:
-                ucontrol->value.integer.value[0] = 4;
-                break;
-        case AW87xx_MODE_6:
-                ucontrol->value.integer.value[0] = 5;
-                break;
-        case AW87xx_MODE_7:
-                ucontrol->value.integer.value[0] = 6;
-                break;
-	case AW87xx_MODE_8:
-                ucontrol->value.integer.value[0] = 7;
-                break;
-	case AW87xx_MODE_9:
-                ucontrol->value.integer.value[0] = 8;
-                break;
-	case AW87xx_MODE_10:
-                ucontrol->value.integer.value[0] = 9;
-                break;
-        default:
-                break;
-        }
-
-        return 0;
-}
-
-
-static char const *AW87xx_mode_text[] = {"MODE1", "MODE2", "MODE3", "MODE4", "MODE5",
-                                         "MODE6", "MODE7", "MODE8", "MODE9", "MODE10",
-                                         "MODE_TEST", "MODE_DEFAULT"};
-
-static const struct soc_enum AW87xx_mode_snd_enum = SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(AW87xx_mode_text),
-                                AW87xx_mode_text);
-
-static const struct snd_kcontrol_new AW87xx_mode_control =
-        SOC_ENUM_EXT("Set AW87xx Mode", AW87xx_mode_snd_enum, AW87xx_mode_get, AW87xx_mode_put);
-
 #else
 static int enable_spk_ext_pa(struct snd_soc_codec *codec, int enable)
 {
@@ -593,64 +427,6 @@ static int enable_spk_ext_pa(struct snd_soc_codec *codec, int enable)
 		}
 	}
 	return 0;
-}
-#endif
-#ifdef CONFIG_NUBIA_AUDIO_EXTERNAL_PA_AW87xx
-int aw_pa_init(struct platform_device *pdev,
-                struct msm8916_asoc_mach_data *pdata)
-{
-#ifdef CONFIG_NUBIA_AUDIO_MULTIPLE_AW_PA
-        int aw_pa_type_gpio_value = -1;
-        aw_pa_type_gpio = of_get_named_gpio(pdev->dev.of_node,
-                                        "nubia,aw_pa_type_gpio", 0);
-        if(aw_pa_type_gpio < 0) {
-                dev_err(&pdev->dev,"property %s in node %s not found %d\n",
-                                "nubia,aw_pa_type_gpio", pdev->dev.of_node->full_name,
-                                 aw_pa_type_gpio);
-        }
-        if(gpio_request(aw_pa_type_gpio, "aw_pa_type_pin")){
-                pr_err("%s: aw pa type gpio request failed\n",__func__);
-        }else{
-                gpio_set_value_cansleep(aw_pa_type_gpio,0);
-                mdelay(1);
-                aw_pa_type_gpio_value = gpio_get_value_cansleep(aw_pa_type_gpio);
-                pr_debug("Read aw_pa_type_gpio 1st: %d\n",aw_pa_type_gpio_value);
-                gpio_set_value_cansleep(aw_pa_type_gpio,1);
-                mdelay(1);
-                aw_pa_type_gpio_value += gpio_get_value_cansleep(aw_pa_type_gpio);
-                pr_debug("Read aw_pa_type_gpio 2st: %d\n",aw_pa_type_gpio_value);
-                if(aw_pa_type_gpio_value == 0){
-                    aw_pa_type = "AW8736";
-	            aw_pa_power_ctl = aw_default_mode = AW87xx_MODE_3;
-                    aw_test_mode = AW87xx_MODE_1;
-                }else if(aw_pa_type_gpio_value == 1){
-                    aw_pa_type = "AW87318";
-                    aw_pa_power_ctl = aw_default_mode = AW87xx_MODE_5;
-                    aw_test_mode = AW87xx_MODE_1;
-                }else if(aw_pa_type_gpio_value == 2){
-                    aw_pa_type = "AW8738";
-                    aw_pa_power_ctl = aw_default_mode = AW87xx_MODE_5;
-                    aw_test_mode = AW87xx_MODE_1;
-	        }else{
-		    pr_err("%s: Unkown aw_pa_type_gpio value\n",__func__);
-                }
-		pr_err("%s: init aw_pa_type to %s, gpio value is %d\n",__func__, aw_pa_type, aw_pa_type_gpio_value);
-        }
-#endif
-        aw_pa_power_gpio = of_get_named_gpio(pdev->dev.of_node,
-                                        "qcom,cdc-ext-amp-gpios", 0);
-        if(aw_pa_power_gpio < 0) {
-                dev_err(&pdev->dev,"property %s in node %s not found %d\n",
-                                "qcom,cdc-ext-amp-gpios", pdev->dev.of_node->full_name,
-                                aw_pa_power_gpio);
-        }
-        if(gpio_request(aw_pa_power_gpio,"ext_pa_ctrl_pin")){
-                pr_err("%s: ext pa control gpio request failed\n",__func__);
-        }else{
-                pr_err("%s: init ext pa to off\n",__func__);
-                aw87xx_power_on(0);
-        }
-        return 0;
 }
 #endif
 
@@ -1338,63 +1114,6 @@ static const struct snd_kcontrol_new msm_snd_controls[] = {
 
 };
 
-#ifdef CONFIG_NUBIA_AUDIO_MULTIPLE_BOX
-int box_info_init(struct platform_device *pdev,
-			struct msm8916_asoc_mach_data *pdata)
-{
-        int box_info_gpio = -1;
-        int value = 0;
-	pr_debug("%s:Enter\n", __func__);
-
-	box_info_gpio = of_get_named_gpio(pdev->dev.of_node,
-				"nubia,box_info_gpio", 0);
-	if (box_info_gpio < 0) {
-		pr_err("%s: missing nubia,box_info_gpio in dt node\n", __func__);
-	} else {
-		if (!gpio_is_valid(box_info_gpio)) {
-			pr_err("%s: Invalid box info gpio: %d",
-				__func__, box_info_gpio);
-			return -EINVAL;
-		}
-                if(!gpio_request(box_info_gpio, "box_info_gpio")){
-                        value = gpio_get_value_cansleep(box_info_gpio);
-                        if(value)
-                            box_info = 1;
-                        else
-                            box_info = 0;
-                        pr_err("%s,gpio is %d, box_info is set to %d",__func__, value, box_info);
-                }else{
-                    pr_err("%s: Request box info gpio failed: %d",
-                                __func__, box_info_gpio);
-                }
-	}
-	return 0;
-}
-static int box_info_put(struct snd_kcontrol *kcontrol,
-                                    struct snd_ctl_elem_value *ucontrol)
-{
-        pr_err("%s: This Fuc should not be execute. \n", __func__);
-        pr_err("%s: box_info = %d\n", __func__, box_info);
-        return 0;
-}
-static int box_info_get(struct snd_kcontrol *kcontrol,
-                                    struct snd_ctl_elem_value *ucontrol)
-{
-        ucontrol->value.integer.value[0] = box_info;
-        pr_err("%s: box_info = %d\n", __func__, box_info);
-        return 0;
-}
-
-
-static char const *box_info_text[] = {"AAC", "HaoSheng",};
-
-static const struct soc_enum box_info_snd_enum = SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(box_info_text),
-                                box_info_text);
-
-static const struct snd_kcontrol_new box_info_control =
-        SOC_ENUM_EXT("Speaker Box Info", box_info_snd_enum, box_info_get, box_info_put);
-
-#endif
 static int msm8952_mclk_event(struct snd_soc_dapm_widget *w,
 			      struct snd_kcontrol *kcontrol, int event)
 {
@@ -2010,18 +1729,17 @@ static void *def_msm8952_wcd_mbhc_cal(void)
 	 * 210-290 == Button 2
 	 * 360-680 == Button 3
 	 */
-
-#ifdef CONFIG_NUBIA_AUDIO_FEATURE
-       btn_low[0] = 100;
-       btn_high[0] = 100;
-       btn_low[1] = 237;
-       btn_high[1] = 237;
-       btn_low[2] = 437;
-       btn_high[2] = 437;
-       btn_low[3] = 437;
-       btn_high[3] = 437;
-       btn_low[4] = 437;
-       btn_high[4] = 437;
+#ifdef CONFIG_NUBIA_AUDIO
+	btn_low[0] = 100;
+	btn_high[0] = 100;
+	btn_low[1] = 240;
+	btn_high[1] = 240;
+	btn_low[2] = 437;
+	btn_high[2] = 437;
+	btn_low[3] = 437;
+	btn_high[3] = 437;
+	btn_low[4] = 437;
+	btn_high[4] = 437;
 #else
 	btn_low[0] = 75;
 	btn_high[0] = 75;
@@ -2034,7 +1752,6 @@ static void *def_msm8952_wcd_mbhc_cal(void)
 	btn_low[4] = 500;
 	btn_high[4] = 500;
 #endif
-
 	return msm8952_wcd_cal;
 }
 
@@ -2656,6 +2373,23 @@ static struct snd_soc_dai_link msm8952_dai[] = {
 		.codec_name = "snd-soc-dummy",
 		.be_id = MSM_FRONTEND_DAI_VOICEMMODE2,
 	},
+#ifdef CONFIG_SND_SOC_TAS2555_GENERIC
+	{ /* hw:x,36 */
+		.name = "QUIN_MI2S Hostless",
+		.stream_name = "QUIN_MI2S Hostless",
+		.cpu_dai_name = "QUIN_MI2S_RX_HOSTLESS",
+		.platform_name = "msm-pcm-hostless",
+		.dynamic = 1,
+		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+			SND_SOC_DPCM_TRIGGER_POST},
+		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
+		.ignore_suspend = 1,
+		/* this dainlink has playback support */
+		.ignore_pmdown_time = 1,
+		.codec_dai_name = "snd-soc-dummy-dai",
+		.codec_name = "snd-soc-dummy",
+	},
+#endif
 	/* Backend I2S DAI Links */
 	{
 		.name = LPASS_BE_PRI_MI2S_RX,
@@ -2886,6 +2620,35 @@ static struct snd_soc_dai_link msm8952_dai[] = {
 		.be_hw_params_fixup = msm_be_hw_params_fixup,
 		.ignore_suspend = 1,
 	},
+#ifdef CONFIG_SND_SOC_TAS2555_GENERIC
+	{
+		.name = LPASS_BE_QUIN_MI2S_RX,
+		.stream_name = "Quinary MI2S Playback",
+		.cpu_dai_name = "msm-dai-q6-mi2s.5",
+		.platform_name = "msm-pcm-routing",
+		.codec_dai_name = "tas2555 ASI1",
+		.codec_name = "tas2555.8-004c",
+		.no_pcm = 1,
+		.be_id = MSM_BACKEND_DAI_QUINARY_MI2S_RX,
+		.be_hw_params_fixup = msm_be_hw_params_fixup,
+		.ops = &msm8952_quin_mi2s_be_ops,
+		.ignore_pmdown_time = 1, /* dai link has playback support */
+		.ignore_suspend = 1,
+	},
+	{
+		.name = LPASS_BE_QUIN_MI2S_TX,
+		.stream_name = "Quinary MI2S Capture",
+		.cpu_dai_name = "msm-dai-q6-mi2s.5",
+		.platform_name = "msm-pcm-routing",
+		.codec_dai_name = "tas2555 ASI1",
+		.codec_name = "tas2555.8-004c",
+		.no_pcm = 1,
+		.be_id = MSM_BACKEND_DAI_QUINARY_MI2S_TX,
+		.be_hw_params_fixup = msm_be_hw_params_fixup,
+		.ops = &msm8952_quin_mi2s_be_ops,
+		.ignore_suspend = 1,
+	},
+#else
 	{
 		.name = LPASS_BE_QUIN_MI2S_RX,
 		.stream_name = "Quinary MI2S Playback",
@@ -2913,6 +2676,7 @@ static struct snd_soc_dai_link msm8952_dai[] = {
 		.ops = &msm8952_quin_mi2s_be_ops,
 		.ignore_suspend = 1,
 	},
+#endif
 };
 
 static int msm8952_wsa881x_init(struct snd_soc_dapm_context *dapm)
@@ -3031,6 +2795,82 @@ static bool msm8952_swap_gnd_mic(struct snd_soc_codec *codec)
 
 	return true;
 }
+#ifdef CONFIG_NUBIA_AUDIO
+int is_typec_headset_switch_support(struct platform_device *pdev,
+		struct msm8916_asoc_mach_data *pdata)
+{
+      int ret = 0;
+	pdata->swap_en0_gpio = of_get_named_gpio(pdev->dev.of_node,
+				"qcom,swap-en0-gpios", 0);
+	if (pdata->swap_en0_gpio < 0) {
+		dev_dbg(&pdev->dev,
+			"property %s in node %s not found %d\n",
+			"qcom,swap-en0-gpios", pdev->dev.of_node->full_name,
+			pdata->swap_en0_gpio);
+	} else {
+		if (!gpio_is_valid(pdata->swap_en0_gpio)) {
+			pr_err("%s: Invalid gpio: %d", __func__,
+					pdata->swap_en0_gpio);
+			return -EINVAL;
+		}
+	}
+	pdata->swap_en1_gpio = of_get_named_gpio(pdev->dev.of_node,
+				"qcom,swap-en1-gpios", 0);
+	if (pdata->swap_en1_gpio < 0) {
+		dev_dbg(&pdev->dev,
+			"property %s in node %s not found %d\n",
+			"qcom,swap-en1-gpios", pdev->dev.of_node->full_name,
+			pdata->swap_en1_gpio);
+	} else {
+		if (!gpio_is_valid(pdata->swap_en1_gpio)) {
+			pr_err("%s: Invalid gpio: %d", __func__,
+					pdata->swap_en1_gpio);
+			return -EINVAL;
+		}
+	}
+
+	ret = gpio_direction_output(pdata->swap_en0_gpio, 1);
+	if (ret) {
+		pr_err("%s: set swap_en0_gpio faided\n",__func__);
+		if (gpio_is_valid(pdata->swap_en0_gpio))
+			gpio_free(pdata->swap_en0_gpio);
+	}
+	ret = gpio_direction_output(pdata->swap_en1_gpio, 0);
+	if (ret) {
+		pr_err("%s: set swap_en1_gpio faided\n",__func__);
+		if (gpio_is_valid(pdata->swap_en1_gpio))
+			gpio_free(pdata->swap_en1_gpio);
+	}
+	mbhc_cfg.msm_swap_set = msm_swap_set;
+	return 0;
+}
+static bool msm_swap_set(struct snd_soc_codec *codec, int value1, int value2)
+{
+	struct snd_soc_card *card = codec->card;
+	struct msm8916_asoc_mach_data *pdata = snd_soc_card_get_drvdata(card);
+	int ret = 0;
+
+	dev_dbg(card->dev, "%s: set value1 is %d and value2 is %d", __func__, value1, value2);
+
+	if (gpio_is_valid(pdata->swap_en0_gpio)) {
+		ret = gpio_direction_output(pdata->swap_en0_gpio, value1);
+		if (ret) {
+			dev_dbg(card->dev, "%s: set swap_en0_gpio failed", __func__);
+		}
+		dev_dbg(card->dev, "%s: current swap_en0_gpio is %d\n", __func__, gpio_get_value(pdata->swap_en0_gpio));
+	}
+
+	if (gpio_is_valid(pdata->swap_en1_gpio)) {
+		ret = gpio_direction_output(pdata->swap_en1_gpio, value2);
+		if (ret) {
+			dev_dbg(card->dev, "%s: set swap_en1_gpio failed", __func__);
+		}
+		dev_dbg(card->dev, "%s: current swap_en1_gpio is %d\n", __func__, gpio_get_value(pdata->swap_en1_gpio));
+	}
+
+	return true;
+}
+#endif
 
 static void msm8952_dt_parse_cap_info(struct platform_device *pdev,
 		struct msm8916_asoc_mach_data *pdata)
@@ -3428,8 +3268,14 @@ static int msm8952_asoc_machine_probe(struct platform_device *pdev)
 				__func__, ret);
 		goto err;
 	}
-#ifdef CONFIG_NUBIA_AUDIO_EXTERNAL_PA_AW87xx
-        ret = aw_pa_init(pdev, pdata);
+
+#ifdef CONFIG_NUBIA_AUDIO
+    ret = is_typec_headset_switch_support(pdev, pdata);
+	if (ret < 0) {
+		pr_err("%s: failed to is_typec_headset_switch_support %d\n",
+				__func__, ret);
+		goto err;
+	}
 #endif
 
 	ret = is_ext_spk_gpio_support(pdev, pdata);
@@ -3517,15 +3363,6 @@ static int msm8952_asoc_machine_probe(struct platform_device *pdev)
 			ret);
 		goto err;
 	}
-#ifdef CONFIG_NUBIA_AUDIO_EXTERNAL_PA_AW87xx
-        snd_soc_add_card_controls(card, &AW87xx_mode_control, 1);
-#endif
-
-#ifdef CONFIG_NUBIA_AUDIO_MULTIPLE_BOX
-        box_info_init(pdev, pdata);
-        snd_soc_add_card_controls(card, &box_info_control, 1);
-#endif
-
 	return 0;
 err:
 	if (pdata->vaddr_gpio_mux_spkr_ctl)

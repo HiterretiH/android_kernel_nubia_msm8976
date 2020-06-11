@@ -442,7 +442,7 @@ static int msm_eeprom_power_up(struct msm_eeprom_ctrl_t *e_ctrl,
 	if (rc < 0) {
 		pr_err("%s:%d failed in camera_fill_vreg_params  rc %d",
 			__func__, __LINE__, rc);
-		return rc;
+		//return rc;//ZTEMT: guxiaodong modify for front eeprom because no vreg
 	}
 
 	/* Parse and fill vreg params for powerdown settings*/
@@ -453,7 +453,7 @@ static int msm_eeprom_power_up(struct msm_eeprom_ctrl_t *e_ctrl,
 	if (rc < 0) {
 		pr_err("%s:%d failed msm_camera_fill_vreg_params for PDOWN rc %d",
 			__func__, __LINE__, rc);
-		return rc;
+		//return rc;//ZTEMT: guxiaodong modify for front eeprom because no vreg
 	}
 
 	rc = msm_camera_power_up(power_info, e_ctrl->eeprom_device_type,
@@ -688,6 +688,77 @@ static int write_eeprom_memory(struct msm_eeprom_ctrl_t *e_ctrl, uint32_t size, 
 END:
 	return rc;
 }
+static int write_eeprom_memory_front(struct msm_eeprom_ctrl_t *e_ctrl, uint32_t size, uint8_t* buffer)
+{
+	int rc = 0;
+	uint32_t i = 0;
+	uint8_t *buffer_read = NULL;
+        //int cnt = 0;
+
+	if (!e_ctrl) {
+		pr_err("%s e_ctrl is NULL", __func__);
+		return -EINVAL;
+	}
+	msleep(50);//ZTEMT: li.bin223 add for improve write eeprom
+	for (i = 0x171b; i <= 0x1ffd; i++) {
+		rc = e_ctrl->i2c_client.i2c_func_tbl->i2c_write(
+				&(e_ctrl->i2c_client),
+				i,
+				buffer[i],
+				1);
+                /*cnt = 0;
+		while(cnt < 3 && rc < 0)
+		{
+                    usleep_range(2000,2100);
+                    rc = e_ctrl->i2c_client.i2c_func_tbl->i2c_write(
+			&(e_ctrl->i2c_client),
+			i,
+			buffer[i],
+			1);
+                    cnt++; 
+		}*/
+                if ( rc < 0) {
+                        pr_err("%s addr = 0x%x, data = 0x%X, rc =%d \n", __func__,i , buffer[i], rc);
+			break;
+		}
+		usleep_range(2000,2100);
+	}
+
+	if ( rc < 0) {
+		goto END;
+	}
+
+	//check data
+	buffer_read = kzalloc(sizeof(uint8_t) * size, GFP_KERNEL);
+	if (!buffer_read) {
+		pr_err("%s:%d kzalloc failed\n", __func__, __LINE__);
+		return -ENOMEM;
+	}
+
+	rc = e_ctrl->i2c_client.i2c_func_tbl->i2c_read_seq(
+				&(e_ctrl->i2c_client),
+				0x0,
+				buffer_read,
+				size);
+
+	if ( rc < 0) {
+		kfree(buffer_read);
+		goto END;
+	}
+
+	for (i = 0; i < size ; i++) {
+		if (buffer[i] != buffer_read[i]) {
+			pr_err("%s data error, addr=0x%X, write data =0x%X, read data=0x%X",
+				__func__, i, buffer[i], buffer_read[i]);
+			rc = -EINVAL;
+			break;
+		}
+	}
+
+	kfree(buffer_read);
+END:
+	return rc;
+}
 //ZTEMT:zhouruoyu add for factory altek 3D calibration ----- end
 
 static int msm_eeprom_config(struct msm_eeprom_ctrl_t *e_ctrl,
@@ -773,6 +844,29 @@ static int msm_eeprom_config(struct msm_eeprom_ctrl_t *e_ctrl,
 			return rc;
 		}
 		rc = write_eeprom_memory(e_ctrl, size, buffer);
+		if (rc < 0) {
+			pr_err("%s write eeprom failed",__func__);
+			kfree(buffer);
+			return rc;
+		}
+		kfree(buffer);
+		break;
+	case CFG_EEPROM_DO_CALIBRATION_FRONT:
+		CDBG("%s E CFG_EEPROM_READ_CAL_DATA\n", __func__);
+		size = cdata->cfg.write_data.num_bytes;
+		buffer = kzalloc(size * (sizeof(uint8_t)), GFP_KERNEL);
+		if (!buffer) {
+		pr_err("%s:%d failed\n", __func__, __LINE__);
+			rc = -ENOMEM;
+			return rc;
+		}
+		if (copy_from_user(buffer, cdata->cfg.write_data.dbuffer ,size * sizeof(uint8_t))) {
+			pr_err("%s:%d failed\n", __func__, __LINE__);
+			kfree(buffer);
+			rc = -EFAULT;
+			return rc;
+		}
+		rc = write_eeprom_memory_front(e_ctrl, size, buffer);
 		if (rc < 0) {
 			pr_err("%s write eeprom failed",__func__);
 			kfree(buffer);
@@ -1566,7 +1660,7 @@ static int eeprom_init_config32(struct msm_eeprom_ctrl_t *e_ctrl,
 	if (rc < 0) {
 		pr_err("%s:%d memory map parse failed\n",
 			__func__, __LINE__);
-		goto free_mem;
+		//goto free_mem; // ZTEMT: fuyipeng modify to power down
 	}
 
 	rc = msm_camera_power_down(power_info,
@@ -1609,6 +1703,34 @@ static int write_eeprom_memory32(struct msm_eeprom_ctrl_t *e_ctrl, void __user *
 	}
 
 	rc = write_eeprom_memory(e_ctrl, size , buffer);
+
+	kfree(buffer);
+	return rc;
+}
+static int write_eeprom_memory_front32(struct msm_eeprom_ctrl_t *e_ctrl, void __user *arg)
+{
+	int rc;
+	uint8_t *buffer;
+	uint32_t size;
+	struct msm_eeprom_cfg_data32 *cdata32 =
+		(struct msm_eeprom_cfg_data32 *) arg;
+
+	size = cdata32->cfg.write_data.num_bytes;
+
+	buffer = kzalloc(size * (sizeof(uint8_t)), GFP_KERNEL);
+	if (!buffer) {
+			pr_err("%s:%d failed\n", __func__, __LINE__);
+			rc = -ENOMEM;
+			return rc;
+	}
+	if (copy_from_user(buffer, (void *)compat_ptr(cdata32->cfg.write_data.dbuffer) ,size * sizeof(uint8_t))) {
+			pr_err("%s:%d failed\n", __func__, __LINE__);
+			kfree(buffer);
+			rc = -EFAULT;
+			return rc;
+	}
+
+	rc = write_eeprom_memory_front(e_ctrl, size , buffer);
 
 	kfree(buffer);
 	return rc;
@@ -1676,6 +1798,14 @@ static int msm_eeprom_config32(struct msm_eeprom_ctrl_t *e_ctrl,
 	case CFG_EEPROM_DO_CALIBRATION:
 		CDBG("%s E CFG_EEPROM_READ_CAL_DATA\n", __func__);
 		rc = write_eeprom_memory32(e_ctrl, argp);
+		if (rc < 0) {
+			pr_err("%s write eeprom failed",__func__);
+			return rc;
+		}
+		break;
+        case CFG_EEPROM_DO_CALIBRATION_FRONT:
+                CDBG("%s E CFG_EEPROM_READ_CAL_DATA\n", __func__);
+		rc = write_eeprom_memory_front32(e_ctrl, argp);
 		if (rc < 0) {
 			pr_err("%s write eeprom failed",__func__);
 			return rc;

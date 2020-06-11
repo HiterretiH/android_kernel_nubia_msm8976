@@ -2,7 +2,7 @@
  * Core MDSS framebuffer driver.
  *
  * Copyright (C) 2007 Google Incorporated
- * Copyright (c) 2008-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2008-2017, The Linux Foundation. All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -126,11 +126,9 @@ static void mdss_fb_set_bl_brightness(struct led_classdev *led_cdev,
 				      enum led_brightness value)
 {
 	struct msm_fb_data_type *mfd = dev_get_drvdata(led_cdev->dev->parent);
-#ifdef CONFIG_NUBIA_LCD_BACKLIGHT_CURVE
 	struct mdss_panel_data *pdata = dev_get_platdata(&mfd->pdev->dev);
 	struct mdss_dsi_ctrl_pdata *ctrl_pdata = container_of(pdata, struct mdss_dsi_ctrl_pdata,
 				panel_data);
-#endif
 	int bl_lvl;
 
 	int value_tmp;
@@ -140,20 +138,18 @@ static void mdss_fb_set_bl_brightness(struct led_classdev *led_cdev,
 		led_trigger_event(mfd->boot_notification_led, 0);
 		mfd->boot_notification_led = NULL;
 	}
+#ifdef CONFIG_NUBIA_LCD_BACKLIGHT_CURVE
+	bl_lvl = nubia_backlight_covert(mfd,value);
+#else
 
 	if (value > mfd->panel_info->brightness_max)
 		value = mfd->panel_info->brightness_max;
 
-#ifdef CONFIG_NUBIA_LCD_BACKLIGHT_CURVE
-	pr_debug("before nubia transe backlight, value = %d",value);
-	value = ctrl_pdata->backlight_curve[value];
-	pr_debug("after nubia transe backlight, value = %d",value);
-#endif
 	/* This maps android backlight level 0 to 255 into
 	   driver backlight level 0 to bl_max with rounding */
 	MDSS_BRIGHT_TO_BL(bl_lvl, value, mfd->panel_info->bl_max,
 				mfd->panel_info->brightness_max);
-
+#endif
 	if (!bl_lvl && value)
 		bl_lvl = 1;
 
@@ -944,13 +940,41 @@ static int mdss_fb_init_panel_modes(struct msm_fb_data_type *mfd,
 	return 0;
 }
 
+#ifdef CONFIG_NUBIA_LCD_BACKLIGHT_CURVE
+int nubia_backlight_covert(struct msm_fb_data_type *mfd,
+                                      int value)
+{
+        u32 bl_lvl;
+
+        if(!mfd){
+                return -EINVAL;
+        }
+
+        pr_debug("before nubia backlight, value = %d\n",value);
+        if(mfd->panel_info->backlight_curve[0] == 0 && value<256 && value>=0 \
+                && backlight_led.max_brightness < 256){
+                bl_lvl = mfd->panel_info->backlight_curve[value];
+        }else{
+                if(value > 0){
+                        bl_lvl =value * (mfd->panel_info->bl_max -mfd->panel_info->bl_min);
+                        do_div(bl_lvl,backlight_led.max_brightness);
+                        bl_lvl =value *bl_lvl;
+                        do_div(bl_lvl,backlight_led.max_brightness);
+                        bl_lvl += mfd->panel_info->bl_min;
+                }else{
+                        bl_lvl =0;
+                }
+        }
+        pr_debug("after nubia backlight, value = %d\n",bl_lvl);
+        return bl_lvl;
+}
+#endif
+
 static int mdss_fb_probe(struct platform_device *pdev)
 {
 	struct msm_fb_data_type *mfd = NULL;
 	struct mdss_panel_data *pdata;
-#ifdef CONFIG_NUBIA_LCD_BACKLIGHT_CURVE
 	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
-#endif
 	struct fb_info *fbi;
 	const char *data;
 	int rc;
@@ -962,12 +986,10 @@ static int mdss_fb_probe(struct platform_device *pdev)
 	pdata = dev_get_platdata(&pdev->dev);
 	if (!pdata)
 		return -EPROBE_DEFER;
-#ifdef CONFIG_NUBIA_LCD_BACKLIGHT_CURVE
 	ctrl_pdata = container_of(pdata, struct mdss_dsi_ctrl_pdata,
                                panel_data);
 	if (!ctrl_pdata)
                 return -EPROBE_DEFER;
-#endif
 
 	of_property_read_u32(pdev->dev.of_node, "cell-index", &cell_index);
 	if (cell_index > fbi_list_index)
@@ -994,15 +1016,15 @@ static int mdss_fb_probe(struct platform_device *pdev)
 	mfd->mdp_fb_page_protection = MDP_FB_PAGE_PROTECTION_WRITECOMBINE;
 
 	mfd->ext_ad_ctrl = -1;
-#ifdef CONFIG_NUBIA_LCD_BACKLIGHT_CURVE
-	pr_debug("nubia before transe backlight mfd->bl_level = %d",mfd->bl_level);
-	mfd->bl_level = ctrl_pdata->backlight_curve[mfd->bl_level];
-	pr_debug("nubia after transe backlight ,mfd->bl_level = %d",mfd->bl_level);
-#endif
+
 	if (mfd->panel_info && mfd->panel_info->brightness_max > 0)
+#ifdef CONFIG_NUBIA_LCD_BACKLIGHT_CURVE
+		mfd->bl_level = nubia_backlight_covert(mfd,backlight_led.brightness);
+#else
 		MDSS_BRIGHT_TO_BL(mfd->bl_level,
 			backlight_led.brightness, mfd->panel_info->bl_max,
 					mfd->panel_info->brightness_max);
+#endif
 	else
 		mfd->bl_level = 0;
 
@@ -1516,10 +1538,9 @@ static void mdss_fb_stop_disp_thread(struct msm_fb_data_type *mfd)
 {
 	pr_debug("%pS: stop display thread fb%d\n",
 		__builtin_return_address(0), mfd->index);
-	mutex_lock(&mfd->mdp_sync_pt_data.sync_mutex);
+
 	kthread_stop(mfd->disp_thread);
 	mfd->disp_thread = NULL;
-	mutex_unlock(&mfd->mdp_sync_pt_data.sync_mutex);
 }
 
 static void mdss_panel_validate_debugfs_info(struct msm_fb_data_type *mfd)
@@ -3063,12 +3084,10 @@ static int mdss_fb_pan_display_ex(struct fb_info *info,
 	mfd->msm_fb_backup.info = *info;
 	mfd->msm_fb_backup.disp_commit = *disp_commit;
 
-	if (mfd->disp_thread) {
-		atomic_inc(&mfd->mdp_sync_pt_data.commit_cnt);
-		atomic_inc(&mfd->commits_pending);
-		atomic_inc(&mfd->kickoff_pending);
-		wake_up_all(&mfd->commit_wait_q);
-	}
+	atomic_inc(&mfd->mdp_sync_pt_data.commit_cnt);
+	atomic_inc(&mfd->commits_pending);
+	atomic_inc(&mfd->kickoff_pending);
+	wake_up_all(&mfd->commit_wait_q);
 	mutex_unlock(&mfd->mdp_sync_pt_data.sync_mutex);
 	if (wait_for_finish) {
 		ret = mdss_fb_pan_idle(mfd);

@@ -90,27 +90,27 @@ early_param("config_setup", nubia_hw_config_setup_config_adc);
 
 //开始进入第一大部分-读取pcb版本部分
 #ifdef CONFIG_NUBIA_HW_VER_BY_ADC
-const struct hw_pcb_adc_map_str* nubia_get_pcb_table_item_by_adc(const struct hw_pcb_adc_map_str *pts, 
+const struct hw_pcb_adc_map_str* nubia_get_pcb_table_item_by_adc(const struct hw_pcb_adc_map_str *pts,
 	   uint32_t tablesize, int input)
 {
     uint32_t i = 0;
-	
+
 	if ( NULL == pts )
 	{
 	  return -EINVAL;
 	}
 
-	while (i < tablesize) 
+	while (i < tablesize)
 	{
-		if ( (pts[i].low_mv <= input) && (input <= pts[i].high_mv) ) 
+		if ( (pts[i].low_mv <= input) && (input <= pts[i].high_mv) )
 			break;
-		else 
+		else
 			i++;
 	}
 
-	if ( i < tablesize ) 
+	if ( i < tablesize )
 		return &pts[i];
-    else 
+    else
 		return NULL;
 }
 #else
@@ -124,22 +124,22 @@ const struct hw_pcb_gpio_map_str* nubia_get_pcb_table_item_by_gpio(const struct 
 
 	if ( NULL == pts || NULL == gpio_str )
 	{
-	  return NULL;
+		return NULL;
 	}
-		
-    sscanf(gpio_str_temp ,"%d,%d", &gpio_value_A, &gpio_value_B);
 
-	while (i < tablesize) 
+	sscanf(gpio_str_temp ,"%d,%d", &gpio_value_A, &gpio_value_B);
+
+	while (i < tablesize)
 	{
-  	  if ( (pts[i].gpio_A == gpio_value_A) && (pts[i].gpio_B == gpio_value_B)) 
-  		break;
-  	  else
-  		i++;
+		if ( (pts[i].gpio_A == gpio_value_A) && (pts[i].gpio_B == gpio_value_B))
+			break;
+		else
+			i++;
 	}
 
-	if ( i < tablesize ) 
+	if ( i < tablesize )
 		return &pts[i];
-    else 
+	else
 		return NULL;
 }
 #endif
@@ -182,9 +182,9 @@ void nubia_get_hw_pcb_version(char* result)
 #endif
     if(!result)
 		return;
-	
+
     if(NULL != pts_item){
-        strcpy(result,pts_item->pcb_ver); 
+        strcpy(result,pts_item->pcb_ver);
      }else
 	    sprintf(result, "%s","unknow");
 }
@@ -221,15 +221,15 @@ const char* nubia_get_rf_band_by_gpio(const struct hw_rf_band_gpio_map_str *pts,
 	{
 	  return "unknow";
 	}
-		
-    sscanf(gpio_str_temp ,"%d,%d", &gpio_value_A, &gpio_value_B);
 
-	while (i < tablesize) 
+	sscanf(gpio_str_temp ,"%d,%d", &gpio_value_A, &gpio_value_B);
+
+	while (i < tablesize)
 	{
-  	  if ( (pts[i].gpio_A == gpio_value_A) && (pts[i].gpio_B == gpio_value_B)) 
-  		break;
-  	  else
-  		i++;
+		if ( (pts[i].gpio_A == gpio_value_A) && (pts[i].gpio_B == gpio_value_B))
+			break;
+		else
+			i++;
 	}
 
 	if ( i < tablesize )
@@ -248,8 +248,8 @@ static ssize_t nubia_hw_rf_band_show(struct kobject *kobj,
 
 	if ( NULL == buf )
 	{
-	  return 0;
-    }
+		return 0;
+	}
 
 	rf_buf = nubia_get_rf_band_by_gpio(hw_rf_band_gpio_map,
                         ARRAY_SIZE(hw_rf_band_gpio_map),
@@ -278,48 +278,47 @@ const struct hw_config_gpio_map_st* nubia_get_config_table_item_by_gpio(const st
 
 	if ( NULL == pts || NULL == gpio_str )
 	{
-	  return NULL;
-	}
-		
-    sscanf(gpio_str_temp ,"%d,%d", &gpio_value_A, &gpio_value_B);
-
-	while (i < tablesize) 
-	{
-  	  if ( (pts[i].gpio_A == gpio_value_A) && (pts[i].gpio_B == gpio_value_B)) 
-  		break;
-  	  else
-  		i++;
-	}
-
-	if ( i < tablesize ) 
-		return &pts[i];
-    else 
 		return NULL;
+	}
 
+	sscanf(gpio_str_temp ,"%d,%d", &gpio_value_A, &gpio_value_B);
+
+	while (i < tablesize)
+	{
+		if ( (pts[i].gpio_A == gpio_value_A) && (pts[i].gpio_B == gpio_value_B))
+			break;
+		else
+			i++;
+	}
+
+	if ( i < tablesize )
+		return &pts[i];
+	else
+		return NULL;
 
 }
 #else
-const struct hw_config_adc_map_st* nubia_get_config_table_item_by_adc(const struct hw_config_adc_map_st *pts, 
+const struct hw_config_adc_map_st* nubia_get_config_table_item_by_adc(const struct hw_config_adc_map_st *pts,
 	   uint32_t tablesize, int input)
 {
     uint32_t i = 0;
-	
+
 	if ( NULL == pts )
 	{
 	  return NULL;
 	}
 
-	while (i < tablesize) 
+	while (i < tablesize)
 	{
-		if ( (pts[i].low_mv <= input) && (input <= pts[i].high_mv) ) 
+		if ( (pts[i].low_mv <= input) && (input <= pts[i].high_mv) )
 			break;
-		else 
+		else
 			i++;
 	}
 
-	if ( i < tablesize ) 
+	if ( i < tablesize )
 		return &pts[i];
-    else 
+    else
 		return NULL;
 
 }
@@ -364,12 +363,12 @@ void nubia_get_config_standard(char* result)
 							ARRAY_SIZE(hw_config_adc_map),
 							nubia_hw_config_mv);
 #endif
-	
+
     if(!result)
 		return;
-	
+
     if(pts_item != NULL){
-        strcpy(result,pts_item->config_type); 
+        strcpy(result,pts_item->config_type);
      }else
 	    sprintf(result, "%s","unknow");
 }
@@ -383,7 +382,7 @@ static ssize_t nubia_config_standard_show(struct kobject *kobj,
 	{
 	  return 0;
 	}
-	
+
     nubia_get_config_standard(buf);
 
 	nubia_hw_version_debug("config_type=%s\n", buf);
@@ -406,7 +405,7 @@ static ssize_t debug_value_store(struct kobject *kobj,
 static ssize_t debug_value_show(struct kobject *kobj,
 	   struct kobj_attribute *attr, char *buf)
 {
-    return sprintf(buf, "%d", debug_value);	
+    return sprintf(buf, "%d", debug_value);
 }
 
 static struct kobj_attribute debug_value_attr=
@@ -497,7 +496,7 @@ int __init nubia_hw_version_init(void)
     int rc = 0;
 
     nubia_hw_version_debug("nubia_hw_version creat attributes start \n");
-  
+
     hw_version_kobj = kobject_create_and_add("nubia_hw_version", NULL);
     if (!hw_version_kobj)
 	{
@@ -523,7 +522,7 @@ int __init nubia_hw_version_init(void)
 static void __exit nubia_hw_version_exit(void)
 {
     sysfs_remove_group(hw_version_kobj,&nubia_hw_version_attr_group);
-    kobject_put(hw_version_kobj);	
+    kobject_put(hw_version_kobj);
 }
 
 module_init(nubia_hw_version_init);

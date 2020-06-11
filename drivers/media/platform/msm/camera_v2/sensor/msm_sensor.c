@@ -49,6 +49,8 @@ int dual_camera_power_flag = 0;
 //static struct isp_cmd_tx_info stream_on_off[SENSOR_TYPEMAX];
 int imx258_main_state = MSM_SENSOR_POWER_DOWN;
 int imx258_aux_state = MSM_SENSOR_POWER_DOWN;
+int s5k3p8sp_state = MSM_SENSOR_POWER_DOWN;
+int ov5675_state = MSM_SENSOR_POWER_DOWN;
 int retry = 3;
 #endif
 /*ZTEMT: fengxun add for AL3200--------End*/
@@ -428,9 +430,18 @@ static int msm_sensor_config32(struct msm_sensor_ctrl_t *s_ctrl,
  		printk("change MINI_ISP_MODE_E2A failed failed \n");
  	} 		
  	//printk("call misp_load_fw \n");
- 	if(0 != mini_isp_drv_setting(MINI_ISP_MODE_NORMAL)){
- 		printk("misp_load_fw failed \n");
+ 	if(!strcmp(s_ctrl->sensordata->sensor_name, "imx258_main") ||!strcmp(s_ctrl->sensordata->sensor_name, "imx258_aux"))
+ 	{
+            if(0 != mini_isp_drv_setting(MINI_ISP_MODE_NORMAL)){
+             		printk("misp_load_fw failed \n");
+             }
  	}
+ 	else if(!strcmp(s_ctrl->sensordata->sensor_name, "s5k3p8sp") ||!strcmp(s_ctrl->sensordata->sensor_name, "s5k5e8") || !strcmp(s_ctrl->sensordata->sensor_name, "ov5675") )
+ 	{
+            if(0 != mini_isp_drv_setting(MINI_ISP_MODE_NORMAL_FRONT_CAMERA)){
+ 		printk("misp_load_fw failed \n");
+ 	    }
+        }	
  	break ;
 	case CFG_WRITE_SPI_ARRAY:
 		{
@@ -974,6 +985,26 @@ static int msm_sensor_config32(struct msm_sensor_ctrl_t *s_ctrl,
 				break;
 			}
 			s_ctrl->sensor_state = MSM_SENSOR_POWER_UP;
+                        //ZTEMT: guxiaodong add for sharing voltage ---start
+                        #ifdef USE_AL3200
+                        if(strncmp(s_ctrl->sensordata->sensor_name,"imx258_main", 10)==0){
+				//pr_err("%s:%d imx258_main_state = %d\n", __func__,__LINE__, s_ctrl->sensor_state);
+				imx258_main_state = s_ctrl->sensor_state;
+			}
+			if(strncmp(s_ctrl->sensordata->sensor_name,"imx258_aux", 10)==0){
+				//pr_err("%s:%d imx258_aux_state = %d\n", __func__,__LINE__, s_ctrl->sensor_state);
+				imx258_aux_state = s_ctrl->sensor_state;
+			}
+                        if(strncmp(s_ctrl->sensordata->sensor_name,"s5k3p8sp", 8)==0){
+				//pr_err("%s:%d s5k3p8sp_state = %d\n", __func__,__LINE__, s_ctrl->sensor_state);
+				s5k3p8sp_state = s_ctrl->sensor_state;
+			}
+                        if(strncmp(s_ctrl->sensordata->sensor_name,"ov5675", 6)==0){
+				//pr_err("%s:%d ov5675_state = %d\n", __func__,__LINE__, s_ctrl->sensor_state);
+				ov5675_state = s_ctrl->sensor_state;
+			}
+                        #endif
+                        //ZTEMT: guxiaodong add for sharing voltage ---end
 			CDBG("%s:%d sensor state %d\n", __func__, __LINE__,
 				s_ctrl->sensor_state);
 		} else {
@@ -1011,6 +1042,26 @@ static int msm_sensor_config32(struct msm_sensor_ctrl_t *s_ctrl,
 				break;
 			}
 			s_ctrl->sensor_state = MSM_SENSOR_POWER_DOWN;
+                        //ZTEMT: guxiaodong add for sharing voltage ---start
+                        #ifdef USE_AL3200
+                        if(strncmp(s_ctrl->sensordata->sensor_name,"imx258_main", 10)==0){
+				pr_err("%s:%d imx258_main_state = %d\n", __func__,__LINE__, s_ctrl->sensor_state);
+				imx258_main_state = s_ctrl->sensor_state;
+			}
+			if(strncmp(s_ctrl->sensordata->sensor_name,"imx258_aux", 10)==0){
+				pr_err("%s:%d imx258_aux_state = %d\n", __func__,__LINE__, s_ctrl->sensor_state);
+				imx258_aux_state = s_ctrl->sensor_state;
+			}
+                        if(strncmp(s_ctrl->sensordata->sensor_name,"s5k3p8sp", 8)==0){
+				pr_err("%s:%d s5k3p8sp_state = %d\n", __func__,__LINE__, s_ctrl->sensor_state);
+				s5k3p8sp_state = s_ctrl->sensor_state;
+			}
+                        if(strncmp(s_ctrl->sensordata->sensor_name,"ov5675", 6)==0){
+				pr_err("%s:%d ov5675_state = %d\n", __func__,__LINE__, s_ctrl->sensor_state);
+				ov5675_state = s_ctrl->sensor_state;
+			}
+                        #endif
+                        //ZTEMT: guxiaodong add for sharing voltage ---end
 			CDBG("%s:%d sensor state %d\n", __func__, __LINE__,
 				s_ctrl->sensor_state);
 		} else {

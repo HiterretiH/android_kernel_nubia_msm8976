@@ -42,6 +42,7 @@
 /******Private Function Prototype******/
 
 static int load_code_task(void *data);
+static int load_code_task_front_camera(void *data);
 static u16 calibration_check_sum(u8 *input_buffer_addr, u16 input_buffer_size);
 
 
@@ -778,6 +779,10 @@ errcode mini_isp_drv_setting(u16 mini_isp_mode)
 		u8 buff_id[4];
 		mini_isp_get_chip_id(0xffef0020,buff_id);
 	}
+        else if(mini_isp_mode == MINI_ISP_MODE_NORMAL_FRONT_CAMERA) {
+            load_code_ready = false;
+            load_code_task_front_camera(NULL);
+        }
 	else
 		/*Pure bypass by sensor*/
 		mini_isp_pure_bypass(mini_isp_mode);
@@ -855,31 +860,31 @@ mini_isp_register_memory_read(0xffec3200, 0xffec3218);
 misp_info("mini_isp_drv_read_reg_e_mode mipi_csi2_tx_0");
 mini_isp_register_memory_read(0xffed0000, 0xffed01c0);
 /*mipi_tx_phy_if_0*/
-misp_info("mini_isp_drv_read_reg_e_mode mipi_tx_phy_if_0");
-mini_isp_register_memory_read(0xffed1000, 0xffed1104);
+//misp_info("mini_isp_drv_read_reg_e_mode mipi_tx_phy_if_0");
+//mini_isp_register_memory_read(0xffed1000, 0xffed1104);
 /*mipi_csi2_tx_1*/
 misp_info("mini_isp_drv_read_reg_e_mode mipi_csi2_tx_1");
 mini_isp_register_memory_read(0xffed5000, 0xffed51c0);
 /*mipi_tx_phy_if_1*/
-misp_info("mini_isp_drv_read_reg_e_mode mipi_tx_phy_if_1");
-mini_isp_register_memory_read(0xffed6000, 0xffed6104);
+//misp_info("mini_isp_drv_read_reg_e_mode mipi_tx_phy_if_1");
+//mini_isp_register_memory_read(0xffed6000, 0xffed6104);
 /*raw_top_reg*/
 misp_info("mini_isp_drv_read_reg_e_mode raw_top_reg");
 mini_isp_register_memory_read(0xfff00000, 0xfff00108);
 /*id_det_a_0*/
-misp_info("mini_isp_drv_read_reg_e_mode id_det_a_0");
-mini_isp_register_memory_read(0xfff01000, 0xfff01090);
-mini_isp_register_memory_read(0xfff01204, 0xfff01204);
+//misp_info("mini_isp_drv_read_reg_e_mode id_det_a_0");
+//mini_isp_register_memory_read(0xfff01000, 0xfff01090);
+//mini_isp_register_memory_read(0xfff01204, 0xfff01204);
 /*id_det_a_1*/
-misp_info("mini_isp_drv_read_reg_e_mode id_det_a_1");
-mini_isp_register_memory_read(0xfff02000, 0xfff02090);
-mini_isp_register_memory_read(0xfff02204, 0xfff02204);
+//misp_info("mini_isp_drv_read_reg_e_mode id_det_a_1");
+//mini_isp_register_memory_read(0xfff02000, 0xfff02090);
+//mini_isp_register_memory_read(0xfff02204, 0xfff02204);
 /*binning_a_0*/
-misp_info("mini_isp_drv_read_reg_e_mode binning_a_0");
-mini_isp_register_memory_read(0xfff03000, 0xfff030b4);
+//misp_info("mini_isp_drv_read_reg_e_mode binning_a_0");
+//mini_isp_register_memory_read(0xfff03000, 0xfff030b4);
 /*binning_a_1*/
-misp_info("mini_isp_drv_read_reg_e_mode binning_a_1");
-mini_isp_register_memory_read(0xfff04000, 0xfff040b4);
+//misp_info("mini_isp_drv_read_reg_e_mode binning_a_1");
+//mini_isp_register_memory_read(0xfff04000, 0xfff040b4);
 /*rx_line_split_a_0*/
 misp_info("mini_isp_drv_read_reg_e_mode rx_line_split_a_0");
 mini_isp_register_memory_read(0xfff05000, 0xfff05064);
@@ -889,25 +894,25 @@ mini_isp_register_memory_read(0xfff06000, 0xfff06064);
 
 
 /*mipi_slvds_rx_phy_if_4L_0*/
-misp_info("mini_isp_drv_read_reg_e_mode mipi_slvds_rx_phy_if_4L_0");
-mini_isp_register_memory_read(0xfff91000, 0xfff9110c);
+//misp_info("mini_isp_drv_read_reg_e_mode mipi_slvds_rx_phy_if_4L_0");
+//mini_isp_register_memory_read(0xfff91000, 0xfff9110c);
 /*mipi_csi2_rx_0*/
 misp_info("mini_isp_drv_read_reg_e_mode mipi_csi2_rx_0");
 mini_isp_register_memory_read(0xfff92000, 0xfff92194);
 /*mipi_slvds_rx_phy_if_4L_1*/
-misp_info("mini_isp_drv_read_reg_e_mode mipi_slvds_rx_phy_if_4L_1");
-mini_isp_register_memory_read(0xfff94000, 0xfff9410c);
+//misp_info("mini_isp_drv_read_reg_e_mode mipi_slvds_rx_phy_if_4L_1");
+//mini_isp_register_memory_read(0xfff94000, 0xfff9410c);
 /*mipi_csi2_rx_1*/
 misp_info("mini_isp_drv_read_reg_e_mode mipi_csi2_rx_1");
 mini_isp_register_memory_read(0xfff95000, 0xfff95194);
 /*ppi_bridge_a_0*/
-misp_info("mini_isp_drv_read_reg_e_mode ppi_bridge_a_0");
-mini_isp_register_memory_read(0xfff97000, 0xfff97030);
-mini_isp_register_memory_read(0xfff97110, 0xfff97164);
+//misp_info("mini_isp_drv_read_reg_e_mode ppi_bridge_a_0");
+//mini_isp_register_memory_read(0xfff97000, 0xfff97030);
+//mini_isp_register_memory_read(0xfff97110, 0xfff97164);
 /*ppi_bridge_a_1*/
-misp_info("mini_isp_drv_read_reg_e_mode ppi_bridge_a_1");
-mini_isp_register_memory_read(0xfff98000, 0xfff98030);
-mini_isp_register_memory_read(0xfff98110, 0xfff98164);
+//misp_info("mini_isp_drv_read_reg_e_mode ppi_bridge_a_1");
+//mini_isp_register_memory_read(0xfff98000, 0xfff98030);
+//mini_isp_register_memory_read(0xfff98110, 0xfff98164);
 
 	return err;
 }
@@ -949,7 +954,40 @@ load_code_task_end:
 	return (int)err;
 }
 
+//guxiaodong add for front camera ---start
+static int load_code_task_front_camera(void *data)
+{
+	/* Error code*/
+	errcode err = ERR_SUCCESS;
 
+	misp_info("misp_load_fw start");
+
+	/* Reset mini-isp low for at least 200us, release to high for 20ms*/
+	/*mini_isp_reset();*/
+
+	/* Open boot file and FW file*/
+	err = mini_isp_drv_open(BOOT_FILE_LOCATION,
+				BASIC_FILE_LOCATION,
+				ADVANCED_FILE_LOCATION,
+				SCENARIO_TABLE_FILE_LOCATION_FRONT_CAMERA);
+	if (err != ERR_SUCCESS)
+		goto load_code_task_end;
+
+
+
+	/* Write boot code and basic code*/
+	err = mini_isp_drv_boot_mini_isp();
+	if (err != ERR_SUCCESS)
+		goto load_code_task_end;
+
+	/* Set load code ready flag*/
+	load_code_ready = true;
+
+load_code_task_end:
+
+	return (int)err;
+}
+//guxiaodong add for front camera ---end
 static u16 calibration_check_sum(u8 *input_buffer_addr, u16 input_buffer_size)
 {
 	u16 i;

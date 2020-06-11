@@ -895,7 +895,7 @@ void mini_isp_poweroff(void)
     gpio_set_value(reset_gpio, 0);
     msleep(2);
 	al3200_clk_enable(0);
-	vcc1v8_gpio_set_value(0);
+	//vcc1v8_gpio_set_value(0); //huaweifeng modify for al3200 power off
 	msleep(4);
     gpio_set_value(vcc1_gpio,  0);
 	msleep(1);

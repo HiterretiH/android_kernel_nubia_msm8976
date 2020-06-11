@@ -23,7 +23,7 @@ config POWER_RESET_MSM
 config NUBIA_PANIC_BOOTMODE
        bool "nubia panic bootmode"
        depends on POWER_RESET_MSM
-       default n
+       default y
        help
          nubia panic bootmode.
 

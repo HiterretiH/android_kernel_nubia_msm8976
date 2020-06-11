@@ -32,7 +32,7 @@
 
 #ifdef CONFIG_NUBIA_LCD_DISP_PREFERENCE
 #include "nubia_disp_preference.h"
-static int cabc_panel_state = 1;
+int cabc_panel_state = 1;
 #endif
 
 DEFINE_LED_TRIGGER(bl_led_trigger);
@@ -209,7 +209,6 @@ int nubia_mdss_dsi_panel_cmds_send(struct mdss_dsi_ctrl_pdata *ctrl,
 static char unlock_ofilm_cmd1[3] = {0x99, 0x95, 0x27};
 static char lock_ofilm_cmd1[3] = {0x99, 0x0, 0x0};
 
-#ifdef CONFIG_NUBIA_LCD_DIM_SWITCH
 static char dimming[2] = {0x53, 0x0};	/* DTYPE_DCS_WRITE1 */
 static struct dsi_cmd_desc dimming_cmd = {
 	{DTYPE_DCS_WRITE1, 1, 0, 0, 1, sizeof(dimming)},
@@ -259,7 +258,6 @@ static void mdss_dsi_panel_dimming_enable(struct mdss_dsi_ctrl_pdata *ctrl, bool
 
 	pr_debug("[lcd]%s: %d: %s dimming \n", __func__, __LINE__, enable ? "enable" : "disable");
 }
-#endif
 
 static char led_pwm1[2] = {0x51, 0x0};	/* DTYPE_DCS_WRITE1 */
 static struct dsi_cmd_desc backlight_cmd = {
@@ -274,18 +272,13 @@ static struct dsi_cmd_desc backlight_cmd_ofilm[] = {
 	{{DTYPE_DCS_LWRITE, 1, 0, 0, 1, sizeof(lock_ofilm_cmd1)},
 	lock_ofilm_cmd1}
 };
-//ZTEMT: added by nubia camera for front camera flash  start
-extern int camera_lcd_bkl_handle(void);
-//ZTEMT: added by nubia camera for front camera flash end
 
 static void mdss_dsi_panel_bklt_dcs(struct mdss_dsi_ctrl_pdata *ctrl, int level)
 {
 	struct dcs_cmd_req cmdreq;
 	struct mdss_panel_info *pinfo;
 	static int last_level = -1;
-#ifdef CONFIG_NUBIA_LCD_DIM_SWITCH
 	static bool bl_on = true;
-#endif
 
 	pinfo = &(ctrl->panel_data.panel_info);
 	if (pinfo->dcs_cmd_by_left) {
@@ -294,33 +287,24 @@ static void mdss_dsi_panel_bklt_dcs(struct mdss_dsi_ctrl_pdata *ctrl, int level)
 	}
 
 	pr_debug("%s: level=%d\n", __func__, level);
-	//ZTEMT: added by nubia camera for front camera flash start
-	if (camera_lcd_bkl_handle()){
-		mdss_dsi_panel_dimming_enable(ctrl, false);
-	}
-	//ZTEMT: added by nubia camera for front camera flash end
-#ifdef CONFIG_NUBIA_LCD_DIM_SWITCH
-	else {
-		if (likely(pinfo->disable_dimming_when_suspend)) {
-			if (level == 0) {
-				mdss_dsi_panel_dimming_enable(ctrl, false);
-				bl_on = false;
-			}
-		}
 
-		if (likely(pinfo->disable_dimming_when_resume)) {
-			if (!last_level) {
-				mdss_dsi_panel_dimming_enable(ctrl, false);
-			}
-			else if (level && !bl_on) {
-				usleep_range(20000, 20000);
-				mdss_dsi_panel_dimming_enable(ctrl, true);
-				bl_on = true;
-			}
+	if (pinfo->disable_dimming_when_suspend) {
+		if (level == 0) {
+			mdss_dsi_panel_dimming_enable(ctrl, false);
+			bl_on = false;
 		}
 	}
-#endif
 
+	if (pinfo->disable_dimming_when_resume) {
+		if (!last_level) {
+			mdss_dsi_panel_dimming_enable(ctrl, false);
+		}
+		else if (level && !bl_on) {
+			usleep_range(20000, 20000);
+			mdss_dsi_panel_dimming_enable(ctrl, true);
+			bl_on = true;
+		}
+	}
 	led_pwm1[1] = (unsigned char)level;
 
 	memset(&cmdreq, 0, sizeof(cmdreq));
@@ -340,12 +324,7 @@ static void mdss_dsi_panel_bklt_dcs(struct mdss_dsi_ctrl_pdata *ctrl, int level)
 
 	mdss_dsi_cmdlist_put(ctrl, &cmdreq);
 
-	//nubia for lcd backlight
-	//it's better to put this logical to function:mdss_dsi_panel_bl_ctrl
-	if( !!last_level !=  !!level )
-		pr_err("[LCD]%s: bl_level=%d\n",__func__,  level);
-
-	if (likely(pinfo->disable_dimming_when_resume)) {
+	if (pinfo->disable_dimming_when_resume) {
 		if (!last_level) {
 			usleep_range(20000, 20000);
 			mdss_dsi_panel_dimming_enable(ctrl, true);
@@ -778,7 +757,7 @@ static void mdss_dsi_panel_bl_ctrl(struct mdss_panel_data *pdata,
 {
 	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
 	struct mdss_dsi_ctrl_pdata *sctrl = NULL;
-
+	static u32 last_level = -1;
 
 	if (pdata == NULL) {
 		pr_err("%s: Invalid input data\n", __func__);
@@ -793,7 +772,6 @@ static void mdss_dsi_panel_bl_ctrl(struct mdss_panel_data *pdata,
 	 * for the backlight brightness. If the brightness is less
 	 * than it, the controller can malfunction.
 	 */
-
 	if ((bl_level < pdata->panel_info.bl_min) && (bl_level != 0))
 		bl_level = pdata->panel_info.bl_min;
 
@@ -805,12 +783,11 @@ static void mdss_dsi_panel_bl_ctrl(struct mdss_panel_data *pdata,
 		mdss_dsi_panel_bklt_pwm(ctrl_pdata, bl_level);
 		break;
 	case BL_DCS_CMD:
-
 #ifdef CONFIG_NUBIA_LCD_WLED_AND_DCS
-	if ( !bl_level )
-		led_trigger_event(bl_led_trigger, 0);
-	else
-		led_trigger_event(bl_led_trigger, 4095);
+		if ( !bl_level )
+			led_trigger_event(bl_led_trigger, 0);
+		else
+			led_trigger_event(bl_led_trigger, 4095);
 #endif
 		if (!mdss_dsi_sync_wait_enable(ctrl_pdata)) {
 			mdss_dsi_panel_bklt_dcs(ctrl_pdata, bl_level);
@@ -839,6 +816,20 @@ static void mdss_dsi_panel_bl_ctrl(struct mdss_panel_data *pdata,
 		pr_err("%s: Unknown bl_ctrl configuration\n",
 			__func__);
 		break;
+	}
+	if(last_level == -1){
+		last_level = 0;
+		return;
+	}
+	if(bl_level > 0)
+		cabc_panel_state = 1;
+	else
+		cabc_panel_state = 0;
+	if(last_level == 0 || bl_level == 0){
+		pr_info("%s: set bl level: %d\n", __func__,bl_level);
+		last_level = bl_level;
+		if (bl_level != 0)
+			nubia_disp_preference();
 	}
 }
 
@@ -878,11 +869,7 @@ static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
 
 	if (ctrl->ds_registered)
 		mdss_dba_utils_video_on(pinfo->dba_data, pinfo);
-
 end:
-#ifdef CONFIG_NUBIA_LCD_DISP_PREFERENCE
-	cabc_panel_state = 1;
-#endif
 	pr_debug("%s:-\n", __func__);
 	return ret;
 }
@@ -940,10 +927,6 @@ static int mdss_dsi_panel_off(struct mdss_panel_data *pdata)
 		pr_err("%s: Invalid input data\n", __func__);
 		return -EINVAL;
 	}
-
-#ifdef CONFIG_NUBIA_LCD_DISP_PREFERENCE
-	cabc_panel_state = 0;
-#endif
 
 	pinfo = &pdata->panel_info;
 	ctrl = container_of(pdata, struct mdss_dsi_ctrl_pdata,
@@ -1880,7 +1863,6 @@ static int mdss_dsi_parse_panel_features(struct device_node *np,
 					__func__, __LINE__);
 	}
 
-#ifdef CONFIG_NUBIA_LCD_DIM_SWITCH
 	pinfo->disable_dimming_when_suspend =
 		of_property_read_bool(np, "qcom,disable-dimming-when-suspend");
 	pr_info("[lcd] %s: %d: disable_dimming_when_suspend is %d\n",
@@ -1890,7 +1872,6 @@ static int mdss_dsi_parse_panel_features(struct device_node *np,
 		of_property_read_bool(np, "qcom,disable-dimming-when-resume");
 	pr_info("[lcd] %s: %d: disable_dimming_when_resume is %d\n",
 		__func__, __LINE__, pinfo->disable_dimming_when_resume);
-#endif
 
 	return 0;
 }
@@ -2077,9 +2058,9 @@ int mdss_panel_parse_bl_settings(struct device_node *np,
 		} else if (!strcmp(data, "bl_ctrl_dcs")) {
 #ifdef CONFIG_NUBIA_LCD_WLED_AND_DCS
 			led_trigger_register_simple("bkl-trigger",
-				&bl_led_trigger);
+                               &bl_led_trigger);
 			pr_debug("%s: SUCCESS-> WLED TRIGGER register\n",
-				__func__);
+                               __func__);
 #endif
 			ctrl_pdata->bklt_ctrl = BL_DCS_CMD;
 			pr_debug("%s: Configured DCS_CMD bklt ctrl\n",
@@ -2690,17 +2671,11 @@ static int mdss_panel_parse_dt(struct device_node *np,
 #endif
 
 #ifdef CONFIG_NUBIA_LCD_BACKLIGHT_CURVE
-	data = of_get_property(np, "nubia,mdss-dsi-panel-backlight-curve", &tmp);
-	if ((!data) || (tmp != 256)) {
-		pr_err("%s:%d, Unable to read nubia backlight curve",
-		       __func__, __LINE__);
-		for (i = 0; i < 256; i++)
-			ctrl_pdata->backlight_curve[i] = i;
-	} else {
-		for (i = 0; i < tmp; i++){
-			ctrl_pdata->backlight_curve[i] = data[i];
-			pr_debug("[LCD]ctrl_pdata->backlight_curve[%d] = %d",i,ctrl_pdata->backlight_curve[i]);
-		}
+	rc = of_property_read_u32_array(np, "nubia,mdss-dsi-panel-backlight-curve", pinfo->backlight_curve,256);
+	if (rc) {
+		pr_debug("%s:%d, nubia backlight curve array error reading , rc = %d\n",
+			__func__, __LINE__, rc);
+			memset(pinfo->backlight_curve,-1,256);
 	}
 #endif
 
@@ -2791,7 +2766,6 @@ int mdss_dsi_panel_init(struct device_node *node,
 	ctrl_pdata->low_power_config = mdss_dsi_panel_low_power_config;
 	ctrl_pdata->panel_data.set_backlight = mdss_dsi_panel_bl_ctrl;
 	ctrl_pdata->switch_mode = mdss_dsi_panel_switch_mode;
-
 #ifdef CONFIG_NUBIA_LCD_DISP_PREFERENCE
 	nubia_set_dsi_ctrl(ctrl_pdata);
 #endif

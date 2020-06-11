@@ -47,10 +47,6 @@ ifeq ($(strip $(KERNEL_GCC_NOANDROID_CHK)),0)
 KERNEL_CFLAGS := KCFLAGS=-mno-android
 endif
 
-#add for nubia dts
-ZTEMT_DTS_NAME:=$(DTS_NAME)
-export ZTEMT_DTS_NAME
-
 KERNEL_OUT := $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ
 KERNEL_CONFIG := $(KERNEL_OUT)/.config
 
@@ -68,6 +64,10 @@ else
 TARGET_PREBUILT_INT_KERNEL := $(KERNEL_OUT)/arch/$(KERNEL_ARCH)/boot/zImage
 endif
 endif
+
+#nubia: Use nubia dts
+NUBIA_DTS_NAME := $(NUBIA_DTS_NAME)
+export NUBIA_DTS_NAME
 
 ifeq ($(TARGET_KERNEL_APPEND_DTB), true)
 $(info Using appended DTB)
@@ -101,6 +101,8 @@ $(KERNEL_OUT):
 	mkdir -p $(KERNEL_OUT)
 
 $(KERNEL_CONFIG): $(KERNEL_OUT)
+	$(hide) if [ "$(FEATURE_NUBIA_USE_DIFF_CONFIG)" == "true" ];then \
+		./kernel/creat_defconfig.sh $(KERNEL_ARCH) $(TARGET_PRODUCT) $(QCOM_DEFCONFIG) $(KERNEL_DEFCONFIG) $(PRODUCT_DIFF_CONFIG); fi
 	$(MAKE) -C kernel O=../$(KERNEL_OUT) ARCH=$(KERNEL_ARCH) CROSS_COMPILE=$(KERNEL_CROSS_COMPILE) $(KERNEL_DEFCONFIG)
 	$(hide) if [ ! -z "$(KERNEL_CONFIG_OVERRIDE)" ]; then \
 			echo "Overriding kernel config with '$(KERNEL_CONFIG_OVERRIDE)'"; \
@@ -117,6 +119,10 @@ $(TARGET_PREBUILT_INT_KERNEL): $(KERNEL_OUT) $(KERNEL_HEADERS_INSTALL)
 	$(clean-module-folder)
 
 $(KERNEL_HEADERS_INSTALL): $(KERNEL_OUT)
+	$(hide) if [ "$(FEATURE_NUBIA_USE_DIFF_CONFIG)" == "true" ];then \
+		./kernel/creat_defconfig.sh $(KERNEL_ARCH) $(TARGET_PRODUCT) $(QCOM_DEFCONFIG) $(KERNEL_DEFCONFIG) $(PRODUCT_DIFF_CONFIG); fi
+	$(hide) if [ "$(TARGET_NUBIA_BUILD_TYPE)" == "release" ]; then \
+		sed -i '/CONFIG_NUBIA_INPUT_KEYRESET=y/d' kernel/arch/$(KERNEL_ARCH)/configs/$(KERNEL_DEFCONFIG); fi
 	$(hide) if [ ! -z "$(KERNEL_HEADER_DEFCONFIG)" ]; then \
 			$(hide) rm -f ../$(KERNEL_CONFIG); \
 			$(MAKE) -C kernel O=../$(KERNEL_OUT) ARCH=$(KERNEL_HEADER_ARCH) CROSS_COMPILE=$(KERNEL_CROSS_COMPILE) $(KERNEL_HEADER_DEFCONFIG); \
@@ -139,6 +145,7 @@ kernelconfig: $(KERNEL_OUT) $(KERNEL_CONFIG)
 	env KCONFIG_NOTIMESTAMP=true \
 	     $(MAKE) -C kernel O=../$(KERNEL_OUT) ARCH=$(KERNEL_ARCH) CROSS_COMPILE=$(KERNEL_CROSS_COMPILE) savedefconfig
 	cp $(KERNEL_OUT)/defconfig kernel/arch/$(KERNEL_ARCH)/configs/$(KERNEL_DEFCONFIG)
-
+	$(hide) if [ "$(FEATURE_NUBIA_USE_DIFF_CONFIG)" == "true" ];then \
+		./kernel/update_diff.sh $(KERNEL_ARCH) $(TARGET_PRODUCT) $(QCOM_DEFCONFIG) $(KERNEL_DEFCONFIG) $(PRODUCT_DIFF_CONFIG); fi
 endif
 endif

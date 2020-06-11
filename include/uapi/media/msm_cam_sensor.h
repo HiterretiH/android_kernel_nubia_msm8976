@@ -259,6 +259,7 @@ enum eeprom_cfg_type_t {
 	CFG_EEPROM_GET_MM_INFO,
 	CFG_EEPROM_INIT,
 	CFG_EEPROM_DO_CALIBRATION,//ZTEMT:zhouruoyu add for factory altek 3D calibration
+	CFG_EEPROM_DO_CALIBRATION_FRONT,//ZTEMT:guxiaodong add for nx589j front factory 3D calibration
 };
 
 struct eeprom_get_t {
@@ -347,7 +348,7 @@ enum msm_sensor_cfg_type_t {
 #define ISPCMD_CAMERA_GET_SENSORMODE			 0x300B
 #define ISPCMD_CAMERA_SET_OUTPUTFORMAT		   0x300D
 #define ISPCMD_CAMERA_PREVIEWSTREAMONOFF		 0x3010
-
+ 
 /* D2 Bulk Data*/
 #define ISPCMD_BULK_WRITE_BASICCODE			  0x2002
 #define ISPCMD_BULK_WRITE_ADVANCEDCODE		   0x2004
@@ -384,7 +385,7 @@ enum msm_actuator_cfg_type_t {
 	CFG_SET_POSITION,
 	CFG_ACTUATOR_POWERDOWN,
 	CFG_ACTUATOR_POWERUP,
-	CFG_ACTUATOR_INIT,
+	CFG_ACTUATOR_INIT,	
 	// ZTEMT: fuyipeng add for manual AF -----start
 	CFG_SET_ACTUATOR_NAME,
 	// ZTEMT: fuyipeng add for manual AF -----end

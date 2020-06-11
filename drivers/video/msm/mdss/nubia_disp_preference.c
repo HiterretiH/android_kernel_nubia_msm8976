@@ -34,6 +34,7 @@ static int boot_flag = 0;
 
 static unsigned int old_cabc = 25;
 static uint32_t brightness = 1;
+extern int cabc_panel_state;
 
 static struct nubia_disp_type nubia_disp_val = {
 	.en_cabc = 1,
@@ -483,6 +484,135 @@ static int nubia_set_cabc(int cabc_val)
 	return ret;
 }
 
+static ssize_t lcd_power_on_show(struct kobject *kobj,
+        struct kobj_attribute *attr, char *buf)
+{
+	uint32_t val = 0;
+	int ret = 0;
+	nubia_disp_val.en_cabc = 1;
+
+	val = CABC_LEVEL1;
+	if ((val != CABC_OFF) && (val != CABC_LEVEL1) &&
+		(val != CABC_LEVEL2) && (val != CABC_LEVEL3)) {
+		NUBIA_DISP_ERROR("invalid cabc val = %d\n", val);
+		return snprintf(buf, PAGE_SIZE, "invalid cabc val = %d\n", val);
+	}
+
+	NUBIA_DISP_INFO("cabc value = %d\n", val);
+
+	if(!boot_flag){
+		return snprintf(buf, PAGE_SIZE, "boot flag\n");
+	}
+
+	ret = nubia_set_cabc(val);
+	if (ret == 0) {
+		nubia_disp_val.cabc = val;
+		NUBIA_DISP_INFO("success to set cabc as = %d\n", val);
+	}
+	nubia_set_ce_cabc(val,nubia_disp_val.cabc);
+	return snprintf(buf, PAGE_SIZE, "nubia_disp_val.cabc = %d, nubia_disp_val.en_cabc = %d\n", nubia_disp_val.cabc, nubia_disp_val.en_cabc);
+}
+
+static ssize_t lcd_power_on_store(struct kobject *kobj,
+        struct kobj_attribute *attr, const char *buf, size_t size)
+{
+	uint32_t val = 0;
+	int ret = 0;
+	nubia_disp_val.en_cabc = 1;
+
+	sscanf(buf, "%d", &val);
+
+	if ((val != CABC_OFF) && (val != CABC_LEVEL1) &&
+		(val != CABC_LEVEL2) && (val != CABC_LEVEL3)) {
+		NUBIA_DISP_ERROR("invalid cabc val = %d\n", val);
+		return size;
+	}
+
+	NUBIA_DISP_INFO("cabc value = %d\n", val);
+
+	if(!boot_flag){
+		return size;
+	}
+
+	ret = nubia_set_cabc(val);
+	if (ret == 0) {
+		nubia_disp_val.cabc = val;
+		NUBIA_DISP_INFO("success to set cabc as = %d\n", val);
+	}
+	nubia_set_ce_cabc(val,nubia_disp_val.cabc);
+	return size;
+}
+
+
+static ssize_t lcd_power_off_show(struct kobject *kobj,
+        struct kobj_attribute *attr, char *buf)
+{
+	uint32_t val = 0;
+	int ret = 0;
+	nubia_disp_val.en_cabc = 1;
+	if(!nubia_disp_val.en_cabc) {
+		NUBIA_DISP_ERROR("no cabc\n");
+		return snprintf(buf, PAGE_SIZE, "no cabc\n");
+	}
+
+	val = CABC_OFF;
+
+	if ((val != CABC_OFF) && (val != CABC_LEVEL1) &&
+		(val != CABC_LEVEL2) && (val != CABC_LEVEL3)) {
+		NUBIA_DISP_ERROR("invalid cabc val = %d\n", val);
+		return snprintf(buf, PAGE_SIZE, "invalid cabc val = %d\n", val);
+        }
+
+	NUBIA_DISP_INFO("cabc value = %d\n", val);
+
+	if(!boot_flag){
+		return snprintf(buf, PAGE_SIZE, "boot flag\n");
+	}
+
+	ret = nubia_set_cabc(val);
+	if (ret == 0) {
+		nubia_disp_val.cabc = val;
+		NUBIA_DISP_INFO("success to set cabc as = %d\n", val);
+	}
+	nubia_set_ce_cabc(val,nubia_disp_val.cabc);
+	nubia_disp_val.en_cabc = 0;
+	return snprintf(buf, PAGE_SIZE, "nubia_disp_val.cabc = %d, nubia_disp_val.en_cabc = %d\n", nubia_disp_val.cabc, nubia_disp_val.en_cabc);
+}
+
+static ssize_t lcd_power_off_store(struct kobject *kobj,
+        struct kobj_attribute *attr, const char *buf, size_t size)
+{
+	uint32_t val = 0;
+	int ret = 0;
+	nubia_disp_val.en_cabc = 1;
+	if(!nubia_disp_val.en_cabc) {
+		NUBIA_DISP_ERROR("no cabc\n");
+		return size;
+	}
+	val = CABC_OFF;
+
+	if ((val != CABC_OFF) && (val != CABC_LEVEL1) &&
+		(val != CABC_LEVEL2) && (val != CABC_LEVEL3)) {
+		NUBIA_DISP_ERROR("invalid cabc val = %d\n", val);
+		return size;
+	}
+
+	NUBIA_DISP_INFO("cabc value = %d\n", val);
+
+	if(!boot_flag){
+		return size;
+	}
+
+	ret = nubia_set_cabc(val);
+	if (ret == 0) {
+		nubia_disp_val.cabc = val;
+		NUBIA_DISP_INFO("success to set cabc as = %d\n", val);
+	}
+	nubia_set_ce_cabc(val,nubia_disp_val.cabc);
+	nubia_disp_val.en_cabc = 0;
+	return size;
+}
+
 static ssize_t cabc_show(struct kobject *kobj,
         struct kobj_attribute *attr, char *buf)
 {
@@ -517,7 +647,7 @@ int  brightness_cabc_set(unsigned int bright)
 		ret += nubia_set_ce_cabc(nubia_disp_val.saturation,old_cabc);
 		if (ret == 0) {
 	                nubia_disp_val.cabc = old_cabc;
-	                NUBIA_DISP_ERROR("success to set cabc as = %d\n", old_cabc);
+	                NUBIA_DISP_DEBUG("success to set cabc as = %d\n", old_cabc);
 	        }
 	}
 	else{
@@ -529,7 +659,7 @@ int  brightness_cabc_set(unsigned int bright)
 		ret += nubia_set_ce_cabc(nubia_disp_val.saturation,CABC_OFF);
 		if (ret == 0) {
 	                nubia_disp_val.cabc = CABC_OFF;
-	                NUBIA_DISP_ERROR("success to set cabc as = %d\n", CABC_OFF);
+	                NUBIA_DISP_DEBUG("success to set cabc as = %d\n", CABC_OFF);
 	        }
 	}
 
@@ -546,6 +676,11 @@ static ssize_t cabc_store(struct kobject *kobj,
 		return size;
 	}
 
+	if (cabc_panel_state == 0) {
+		NUBIA_DISP_ERROR("cabc panel not ready !\n");
+		return size;
+	}
+
 	sscanf(buf, "%d", &val);
 
 	if ((val != CABC_OFF) && (val != CABC_LEVEL1) &&
@@ -558,10 +693,9 @@ static ssize_t cabc_store(struct kobject *kobj,
 
 	//save previous cabc
 	old_cabc = val ;
-	NUBIA_DISP_ERROR("[CABC]:%d,cabc_store:%d\n", __LINE__,old_cabc);
+	NUBIA_DISP_DEBUG("[CABC]:%d,cabc_store:%d\n", __LINE__,old_cabc);
 
 	if(!boot_flag){
-		nubia_disp_val.cabc = val;
 		return size;
 	}
 
@@ -582,7 +716,7 @@ static ssize_t cabc_store(struct kobject *kobj,
 	return size;
 }
 
-
+#ifndef CONFIG_NUBIA_LCD_COLORTMP_QDCM
 static int nubia_set_saturation(int sat_val)
 {
 	int ret = 0;
@@ -654,7 +788,6 @@ static ssize_t saturation_store(struct kobject *kobj,
 	NUBIA_DISP_DEBUG("saturation value = %d\n", val);
 
 	if(!boot_flag){
-		nubia_disp_val.saturation = val;
 		return size;
 	}
 
@@ -831,7 +964,7 @@ static ssize_t colortmp_store(struct kobject *kobj,
 	return size;
 }
 #endif
-
+#endif
 
 #if NUBIA_DISP_COLORTMP_DEBUG
 static ssize_t colortmp_r_show(struct kobject *kobj,
@@ -1129,8 +1262,10 @@ static ssize_t lcd_alpm_store(struct kobject *kobj,
 #endif
 
 static struct kobj_attribute lcd_disp_attrs[] = {
+#ifndef CONFIG_NUBIA_LCD_COLORTMP_QDCM
 	__ATTR(saturation,      0664, saturation_show,     saturation_store),
 	__ATTR(colortmp,        0664, colortmp_show,       colortmp_store),
+#endif
 //donot use ACL node, just return NULL if no cabc support
 #if defined ( CONFIG_NUBIA_LCD_USE_ACL )
 	__ATTR(acl,        0664, cabc_show,       cabc_store),
@@ -1148,6 +1283,8 @@ static struct kobj_attribute lcd_disp_attrs[] = {
 #endif
 	__ATTR(lcd_debug,  0664, lcd_debug_show, lcd_debug_store),
 	__ATTR(lcd_debug_type,  0664, lcd_debug_type_show, lcd_debug_type_store),
+	__ATTR(lcd_power_on,        0664, lcd_power_on_show,       lcd_power_on_store),
+	__ATTR(lcd_power_off,        0664, lcd_power_off_show,       lcd_power_off_store),
 };
 
 void nubia_feature_check( void )
@@ -1183,12 +1320,16 @@ EXPORT_SYMBOL(nubia_set_dsi_ctrl);
 void nubia_disp_preference(void)
 {
 	int ret = 0;
-	NUBIA_DISP_DEBUG("nubia_disp_preference start\n");
+	NUBIA_DISP_INFO("nubia_disp_preference start\n");
 
+#ifndef CONFIG_NUBIA_LCD_COLORTMP_QDCM
 	ret = nubia_set_saturation(nubia_disp_val.saturation);
-	ret += nubia_set_ce_cabc(nubia_disp_val.saturation, nubia_disp_val.cabc);
+#endif
+	ret = nubia_set_cabc(nubia_disp_val.cabc);
+	ret = nubia_set_ce_cabc(nubia_disp_val.saturation, nubia_disp_val.cabc);
 	if (ret == 0)
-		NUBIA_DISP_INFO("success to set saturation as = %d\n", nubia_disp_val.saturation);
+		NUBIA_DISP_INFO("success to set sat = %d ,cabc as = %d\n",
+						nubia_disp_val.saturation, nubia_disp_val.cabc);
 
 	if (!boot_flag){
 		boot_flag = 1;
@@ -1208,10 +1349,12 @@ void nubia_disp_preference(void)
 			pcc_cfg_cool.b.b = nubia_mdss_dsi_ctrl->nubia_mdp_colortmp_cool.blue;
 		}
 	}
+#ifndef CONFIG_NUBIA_LCD_COLORTMP_QDCM
 #ifdef CONFIG_NUBIA_LCD_COLORTMP_CONTINUOUS
 	ret = nubia_set_colortmp();
 #else
 	ret = nubia_set_colortmp(nubia_disp_val.colortmp);
+#endif
 #endif
 	if (ret == 0)
                 NUBIA_DISP_INFO("success to set colortmp as = %d\n", nubia_disp_val.colortmp);

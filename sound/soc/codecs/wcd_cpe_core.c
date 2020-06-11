@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2017, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -1737,10 +1737,10 @@ static ssize_t fw_name_store(struct wcd_cpe_core *core,
 	if (pos)
 		copy_count = pos - buf;
 
-	if (copy_count > (WCD_CPE_IMAGE_FNAME_MAX - 1)) {
+	if (copy_count > WCD_CPE_IMAGE_FNAME_MAX) {
 		dev_err(core->dev,
 			"%s: Invalid length %d, max allowed %d\n",
-			__func__, copy_count, WCD_CPE_IMAGE_FNAME_MAX - 1);
+			__func__, copy_count, WCD_CPE_IMAGE_FNAME_MAX);
 		return -EINVAL;
 	}
 

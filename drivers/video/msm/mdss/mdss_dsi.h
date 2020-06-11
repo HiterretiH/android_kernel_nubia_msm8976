@@ -369,10 +369,10 @@ struct panel_horizontal_idle {
 
 #ifdef CONFIG_NUBIA_LCD_DISP_PREFERENCE
 struct nubia_mdp_colortmp{
-       int defult;
-       int red;
-       int green;
-       int blue;
+	int defult;
+	int red;
+	int green;
+	int blue;
 };
 #endif
 
@@ -418,9 +418,7 @@ struct mdss_dsi_ctrl_pdata {
 	int bklt_en_gpio;
 	int lcd_mode_sel_gpio;
 	int bklt_ctrl;	/* backlight ctrl */
-#ifdef CONFIG_NUBIA_LCD_BACKLIGHT_CURVE
-       uint32_t backlight_curve[256];
-#endif
+	uint32_t backlight_curve[256];
 	bool pwm_pmi;
 	int pwm_period;
 	int pwm_pmic_gpio;
@@ -454,9 +452,7 @@ struct mdss_dsi_ctrl_pdata {
 	struct dsi_panel_cmds post_panel_on_cmds;
 	struct dsi_panel_cmds off_cmds;
 	struct dsi_panel_cmds status_cmds;
-
 	u32 nubia_mdss_dsi_cabc_low_bl;
-
 #ifdef CONFIG_NUBIA_LCD_DISP_PREFERENCE
        struct dsi_panel_cmds ce_cmds_off;
        struct dsi_panel_cmds ce_cmds_soft;
@@ -491,7 +487,6 @@ struct mdss_dsi_ctrl_pdata {
        u32 nubia_colortmp_adjustable_blue;
        u32 nubia_colortmp_adjustable_red;
 #endif
-
 	u32 status_cmds_rlen;
 	u32 *status_value;
 	u32 status_error_count;
